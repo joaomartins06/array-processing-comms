@@ -292,5 +292,43 @@ def _():
 
 
 
+# ---------------- Phase 7: metrics and Monte Carlo ----------------
+from doa.metrics import is_resolved, resolution_probability, rmse
+import monte_carlo                                  # scripts/ is on sys.path when run as a script
+
+
+@check("metrics: is_resolved needs exactly d angles, each within half the separation")
+def _():
+    true = np.array([20.0, 30.0])
+    assert is_resolved([29.5, 20.4], true)              # unsorted input is fine
+    assert not is_resolved([20.0], true)                # too few
+    assert not is_resolved([20.1, 29.8, 40.0], true)    # too many
+    assert not is_resolved([20.0, 45.0], true)          # stray peak, error 15 > 5
+
+
+@check("metrics: rmse ignores unresolved trials; probability counts them; nan if none resolved")
+def _():
+    true = np.array([20.0, 30.0])
+    ests = [np.array([20.1, 30.1]), np.array([19.9, 29.9]), np.array([20.0]), np.array([20.0, 45.0])]
+    assert np.isclose(rmse(ests, true), 0.1)
+    assert np.isclose(resolution_probability(ests, true), 0.5)
+    assert np.isnan(rmse([np.array([20.0])], true))
+
+
+@check("Monte Carlo: same seed gives identical results, 30-trial run is fast")
+def _():
+    kw = dict(thetas=[-20.0, 30.0], N=20, snr_db=10, seed=11, trials=30)
+    assert monte_carlo.run_config(**kw) == monte_carlo.run_config(**kw)
+
+
+@check("Monte Carlo: MUSIC resolves 10 deg where Bartlett does not; RMSE falls with SNR")
+def _():
+    r = monte_carlo.run_config([20.0, 30.0], 20, 25, seed=21, trials=30)
+    assert r["MUSIC"][1] > 0.9 and r["Bartlett"][1] == 0.0, f"{r}"
+    lo = monte_carlo.run_config([-20.0, 30.0], 20, 10, seed=22, trials=30)["MUSIC"][0]
+    hi = monte_carlo.run_config([-20.0, 30.0], 20, 30, seed=23, trials=30)["MUSIC"][0]
+    assert hi < lo / 3, f"RMSE {lo:.3f} (10 dB) vs {hi:.3f} (30 dB)"
+
+
 print(f"\n{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)
