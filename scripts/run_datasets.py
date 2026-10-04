@@ -10,7 +10,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from doa.covariance import sample_cov
-from doa.estimators import bartlett, music, mvdr
+from doa.estimators import bartlett, esprit, music, mvdr
 from doa.order import eigen_profile, estimate_order, mdl_aic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +26,7 @@ LOADINGS = (1e-6, 1e-3, 1e-1)
 DEFAULT_LOADING = 1e-3
 COLORS = {"Bartlett": "#0072B2", "MVDR": "#E69F00", "MUSIC": "#009E73"}
 STYLES = {"Bartlett": "-", "MVDR": "--", "MUSIC": "-."}
+ESPRIT_COLOR = "#CC79A7"  # ESPRIT has no spectrum, its angles are drawn as vertical lines
 
 
 def to_db(P: np.ndarray) -> np.ndarray:
@@ -89,8 +90,9 @@ for col, name in enumerate(("10sep", "50sep")):
         "Bartlett": bartlett.estimate(X, D, GRID, Delta),
         "MVDR": mvdr.estimate(X, D, GRID, Delta, loading=DEFAULT_LOADING),
         "MUSIC": music.estimate(X, D, GRID, Delta),
+        "ESPRIT": esprit.estimate(X, D, GRID, Delta),   # closed form, not limited by the grid
     }
-    print(f"\nEstimated angles in degrees (grid step {GRID[1] - GRID[0]:.2f}):")
+    print(f"\nEstimated angles in degrees (grid step {GRID[1] - GRID[0]:.2f}, ESPRIT has no grid):")
     for method, angles in est.items():
         print(f"  {method:9s} {fmt(angles)}")
 
@@ -100,10 +102,12 @@ for col, name in enumerate(("10sep", "50sep")):
         db = to_db(P[method])
         ax.plot(GRID, db, STYLES[method], color=COLORS[method], lw=1.5, label=method)
         mark(ax, est[method], db, COLORS[method])
+    for i, a in enumerate(est["ESPRIT"]):               # the two ESPRIT angles as vertical lines
+        ax.axvline(a, color=ESPRIT_COLOR, ls=":", lw=1.5, label="ESPRIT" if i == 0 else None)
     ax.set(xlabel="angle (deg)", ylabel="pseudo-spectrum (dB, normalised to peak)",
            title=f"Dataset {name}", xlim=(-90, 90), ylim=(-60, 3))
     ax.grid(alpha=0.3)
-    ax.legend(loc="lower center", ncol=3)
+    ax.legend(loc="lower center", ncol=4)
     fig.tight_layout()
     fig.savefig(FIG / f"spectra_{name}.png", dpi=200)
     plt.close(fig)

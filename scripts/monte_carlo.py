@@ -9,7 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doa.estimators import bartlett, music, mvdr
+from doa.estimators import bartlett, esprit, music, mvdr
 from doa.metrics import resolution_probability, rmse
 from doa.model import simulate
 
@@ -27,10 +27,11 @@ METHODS = {
     "Bartlett": lambda X: bartlett.estimate(X, D, GRID, DELTA),
     "MVDR": lambda X: mvdr.estimate(X, D, GRID, DELTA, loading=LOADING),
     "MUSIC": lambda X: music.estimate(X, D, GRID, DELTA),
+    "ESPRIT": lambda X: esprit.estimate(X, D, GRID, DELTA),
 }
 
-COLORS = {"Bartlett": "#0072B2", "MVDR": "#E69F00", "MUSIC": "#009E73"}
-MARKERS = {"Bartlett": "o", "MVDR": "s", "MUSIC": "^"}
+COLORS = {"Bartlett": "#0072B2", "MVDR": "#E69F00", "MUSIC": "#009E73", "ESPRIT": "#CC79A7"}
+MARKERS = {"Bartlett": "o", "MVDR": "s", "MUSIC": "^", "ESPRIT": "D"}
 
 
 def run_config(thetas, N, snr_db, seed, corr=0.0, trials=TRIALS, methods=METHODS):

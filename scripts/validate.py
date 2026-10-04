@@ -330,5 +330,49 @@ def _():
     assert hi < lo / 3, f"RMSE {lo:.3f} (10 dB) vs {hi:.3f} (30 dB)"
 
 
+# ---------------- Phase 8: ESPRIT ----------------
+from doa.estimators import esprit
+from scipy.io import loadmat
+
+
+@check("ESPRIT: exact on noiseless synthetic data (no grid), several angle pairs")
+def _():
+    for thetas in ([-12.3, 27.8], [-60.0, 45.0], [30.0, -20.0], [0.01, 0.5]):
+        _, S, A, _ = simulate(thetas, M, Delta, 20, 0, np.random.default_rng(8))
+        ang = esprit.estimate(A @ S, 2, None, Delta)                  # X = A S, no noise
+        assert np.allclose(ang, np.sort(thetas), atol=1e-6), f"{thetas}: {ang}"
+
+
+@check("ESPRIT ignores the grid argument and returns sorted angles")
+def _():
+    X, *_ = simulate([40, -10], M, Delta, 20, 20, np.random.default_rng(9))
+    a1 = esprit.estimate(X, 2, None, Delta)
+    a2 = esprit.estimate(X, 2, np.arange(-10, 10, 1.0), Delta)
+    assert np.array_equal(a1, a2) and a1[0] < a1[1]
+
+
+@check("ESPRIT resolves 10 and 15 deg (below the Rayleigh limit) at high SNR")
+def _():
+    X, *_ = simulate([10, 15], M, Delta, 200, 30, np.random.default_rng(0))
+    ang = esprit.estimate(X, 2, None, Delta)
+    assert np.allclose(ang, [10, 15], atol=0.5), f"{ang}"
+
+
+@check("ESPRIT agrees with MUSIC on a noisy simulation (within 0.3 deg)")
+def _():
+    X, *_ = simulate([-20, 30], M, Delta, 50, 15, np.random.default_rng(10))
+    d = np.abs(esprit.estimate(X, 2, None, Delta) - music.estimate(X, 2, grid))
+    assert d.max() < 0.3, f"{d}"
+
+
+@check("ESPRIT matches MUSIC on both datasets to within the grid step")
+def _():
+    for name in ("10sep", "50sep"):
+        m = loadmat(pathlib.Path(__file__).resolve().parents[1] / "data" / f"spcom_{name}.mat")
+        X, Dl = m["X"], float(m["Delta"].item())
+        d = np.abs(esprit.estimate(X, 2, None, Dl) - music.estimate(X, 2, grid, Dl))
+        assert d.max() <= 0.05, f"{name}: {d}"
+
+
 print(f"\n{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)
