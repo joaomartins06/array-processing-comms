@@ -22,5 +22,7 @@ def mdl_aic(R: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
 
 def estimate_order(R: np.ndarray, N: int, method: str = "mdl") -> int:
     #Estimated number of sources: argmin over k of the MDL or AIC criterion.
+    #this is done by locating the index of the smallest value of the chosen criterion
+    #this is a consequence of the fact that the MDL and AIC criteria are functions of k that dips after the true number of sources
     mdl, aic = mdl_aic(R, N)
     return int(np.argmin(mdl if method == "mdl" else aic))
