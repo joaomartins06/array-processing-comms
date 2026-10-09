@@ -11,6 +11,7 @@ import numpy as np
 
 from doa.covariance import sample_cov
 from doa.estimators import bartlett, esprit, music, mvdr
+from doa.metrics import resolution_probability, rmse
 from doa.model import simulate
 from doa.order import estimate_order
 from doa.peaks import pick_peaks
@@ -36,10 +37,10 @@ WEAK = 1                        # index of the weak source (the one at 30 deg)
 #MVDR therefore call pick_peaks with a relaxed threshold; peaks.py itself is not changed.
 REL_DB = -40
 
-#metrics.py accepts an estimate within half the separation (25 deg for the 50 deg pair). With the
-#relaxed threshold Bartlett can pick a sidelobe 10-15 deg away from the weak source, which that
-#criterion would count as a success. A source therefore only counts as found within TOL degrees.
-#For the 10 deg pair this is identical to the half-separation criterion.
+#metrics.py by default accepts an estimate within half the separation (25 deg for the 50 deg pair).
+#With the relaxed threshold Bartlett can pick a sidelobe 10-15 deg away from the weak source, which
+#that criterion would count as a success. A source therefore only counts as found within TOL degrees
+#(passed as tol to metrics.py). For the 10 deg pair this equals the default half-separation criterion.
 TOL = 5.0
 
 
@@ -66,24 +67,6 @@ COLORS = {"Bartlett": "#0072B2", "MVDR": "#E69F00", "MUSIC": "#009E73", "ESPRIT"
 MARKERS = {"Bartlett": "o", "MVDR": "s", "MUSIC": "^", "ESPRIT": "D"}
 
 
-def found(est, true, tol=TOL):
-    #all sources found: right number of angles, each within tol degrees of the truth
-    est, true = np.sort(np.asarray(est, dtype=float)), np.sort(np.asarray(true, dtype=float))
-    return est.size == true.size and bool(np.all(np.abs(est - true) < tol))
-
-
-def p_found(ests, true):
-    #fraction of trials in which all sources were found
-    return float(np.mean([found(e, true) for e in ests]))
-
-
-def rmse_found(ests, true):
-    #RMSE over the trials where all sources were found, nan if none
-    true = np.sort(np.asarray(true, dtype=float))
-    errs = [np.sort(e) - true for e in ests if found(e, true)]
-    return float(np.sqrt(np.mean(np.concatenate(errs) ** 2))) if errs else float("nan")
-
-
 def run_powers(thetas, dp, seed, trials=TRIALS):
     #Monte Carlo point: P_found and RMSE per method, plus how often MDL finds d = 2
     rng = np.random.default_rng(seed)
@@ -96,7 +79,8 @@ def run_powers(thetas, dp, seed, trials=TRIALS):
         for name, estimate in METHODS.items():
             ests[name].append(estimate(X, len(thetas)))
         mdl_ok += estimate_order(sample_cov(X), N) == len(thetas)
-    res = {name: (rmse_found(e, thetas), p_found(e, thetas)) for name, e in ests.items()}
+    #found = right number of angles, each within TOL degrees of the truth
+    res = {name: (rmse(e, thetas, TOL), resolution_probability(e, thetas, TOL)) for name, e in ests.items()}
     res["MDL"] = mdl_ok / trials
     return res
 

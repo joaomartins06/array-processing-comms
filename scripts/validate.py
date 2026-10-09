@@ -374,5 +374,36 @@ def _():
         assert d.max() <= 0.05, f"{name}: {d}"
 
 
+# ---------------- metrics: optional absolute tolerance ----------------
+@check("metrics: tol=None keeps the half-separation rule, a given tol replaces it")
+def _():
+    true = np.array([20.0, 30.0])                       # default tolerance is 5 deg
+    assert is_resolved([20.0, 29.0], true)              # default: accepted
+    assert not is_resolved([20.0, 29.0], true, tol=0.5)  # tighter tol: rejected
+    assert is_resolved([20.0, 29.0], true, tol=1.5)
+    assert is_resolved([20.0, 29.0], true) == is_resolved([20.0, 29.0], true, tol=None)
+
+
+@check("metrics: a tol larger than half the separation accepts what the default rejects")
+def _():
+    true = np.array([-20.0, 30.0])                      # default tolerance is 25 deg
+    assert not is_resolved([-20.0, 58.0], true)         # error 28 deg, rejected by default
+    assert is_resolved([-20.0, 58.0], true, tol=30.0)
+
+
+@check("metrics: resolution_probability and rmse use the same tol as is_resolved")
+def _():
+    true = np.array([20.0, 30.0])
+    ests = [np.array([20.1, 30.1]), np.array([19.9, 28.0]), np.array([20.0])]
+    # with tol=1: trial 1 found, trial 2 not found (error 2 deg), trial 3 not found (one angle)
+    assert np.isclose(resolution_probability(ests, true, tol=1.0), 1 / 3)
+    assert np.isclose(rmse(ests, true, tol=1.0), 0.1)
+    # with tol=3: trials 1 and 2 found
+    assert np.isclose(resolution_probability(ests, true, tol=3.0), 2 / 3)
+    assert np.isclose(rmse(ests, true, tol=3.0), np.sqrt(np.mean([0.1**2, 0.1**2, 0.1**2, 2.0**2])))
+    # default behaviour unchanged
+    assert np.isclose(resolution_probability(ests, true), resolution_probability(ests, true, tol=None))
+
+
 print(f"\n{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)

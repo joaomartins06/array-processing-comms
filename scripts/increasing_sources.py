@@ -26,6 +26,11 @@ GRID = np.arange(-90, 90.0001, 0.05)
 TRIALS = 500
 LOADING = 1e-3
 
+#a source counts as found only within TOL degrees (passed as tol to metrics.py). The default rule
+#(half the smallest separation) would be 32.5 deg for the d = 2 set, far too loose: a sidelobe
+#or a wrong peak could count as a success. TOL is smaller than the half-separation of every set below.
+TOL = 5.0
+
 # method name -> estimate(X, d). d is an input here because it changes per experiment
 METHODS = {
     "Bartlett": lambda X, d: bartlett.estimate(X, d, GRID, DELTA),
@@ -52,7 +57,7 @@ SNRS = list(range(-10, 41, 5))
 
 
 def run_sources(thetas, snr_db, seed, trials=TRIALS):
-    #Monte Carlo point: resolution probability and RMSE per method, plus how often MDL finds d
+    #Monte Carlo point: P_found and RMSE per method (found = within TOL deg), plus how often MDL finds d
     rng = np.random.default_rng(seed)
     d = len(thetas)
     ests = {name: [] for name in METHODS}
@@ -64,16 +69,16 @@ def run_sources(thetas, snr_db, seed, trials=TRIALS):
             ests[name].append(estimate(X, d))
         #MDL can only return 0..M-1, so it can never find d = M
         mdl_ok += estimate_order(sample_cov(X), N) == d
-    res = {name: (rmse(e, thetas), resolution_probability(e, thetas)) for name, e in ests.items()}
+    res = {name: (rmse(e, thetas, TOL), resolution_probability(e, thetas, TOL)) for name, e in ests.items()}
     res["MDL"] = mdl_ok / trials
     return res
 
 
 def table(title, xlabel, xs, results):
-    #prints RMSE and resolution probability per method, plus the MDL success rate
+    #prints RMSE and P_found per method, plus the MDL success rate
     print(f"\n{title}")
     print(f"{xlabel:>10s} | " + " | ".join(f"{n:^19s}" for n in METHODS) + " |  MDL ok")
-    print(f"{'':>10s} | " + " | ".join(f"{'RMSE':>9s} {'P_res':>9s}" for _ in METHODS) + " |")
+    print(f"{'':>10s} | " + " | ".join(f"{'RMSE':>9s} {'P_found':>9s}" for _ in METHODS) + " |")
     for x, res in zip(xs, results):
         cells = " | ".join(f"{res[n][0]:9.4f} {res[n][1]:9.3f}" for n in METHODS)
         print(f"{x:>10} | {cells} | {res['MDL']:7.3f}")
@@ -83,10 +88,10 @@ def exp_sources():
     results = {}
     for d, thetas in SOURCE_SETS.items():
         results[d] = [run_sources(thetas, s, 5000 + 100 * d + i) for i, s in enumerate(SNRS)]
-        table(f"Experiment A: d = {d} sources at {thetas}, N={N}, {TRIALS} trials",
+        table(f"Experiment A: d = {d} sources at {thetas}, N={N}, {TRIALS} trials, found = within {TOL:.0f} deg",
               "SNR (dB)", SNRS, results[d])
 
-    #figure 1: resolution probability (top) and RMSE (bottom) versus SNR, one column per d
+    #figure 1: P_found (top) and RMSE (bottom) versus SNR, one column per d
     fig, axes = plt.subplots(2, len(SOURCE_SETS), figsize=(15, 7), sharex=True)
     for col, d in enumerate(SOURCE_SETS):
         for name in METHODS:
@@ -102,8 +107,8 @@ def exp_sources():
                               va="center", transform=axes[1, col].transAxes)
         for ax in axes[:, col]:
             ax.grid(alpha=0.3, which="both")
-    axes[0, 0].set_ylabel("resolution probability")
-    axes[1, 0].set_ylabel("RMSE (deg), resolved trials")
+    axes[0, 0].set_ylabel(f"P(all found within {TOL:.0f} deg)")
+    axes[1, 0].set_ylabel("RMSE (deg), found trials")
     axes[0, 0].legend(fontsize=8)
     fig.suptitle(f"Increasing the number of sources (M={M}, N={N}, {TRIALS} trials)")
     fig.tight_layout()
