@@ -405,5 +405,33 @@ def _():
     assert np.isclose(resolution_probability(ests, true), resolution_probability(ests, true, tol=None))
 
 
+# ---------------- benchmark.py: timing utility ----------------
+import time as _time
+
+from doa.timing import summarize, time_calls
+
+
+@check("timing.time_calls: returns `repeat` non-negative floats, warm-up excluded from the count")
+def _():
+    calls = []
+    times = time_calls(lambda: calls.append(1), repeat=5, warmup=2)
+    assert len(calls) == 7  # 2 warmup + 5 timed
+    assert times.shape == (5,) and np.all(times >= 0)
+
+
+@check("timing.time_calls: measures at least the known sleep duration")
+def _():
+    t = time_calls(lambda: _time.sleep(0.01), repeat=3, warmup=1)
+    assert np.all(t >= 0.01)
+
+
+@check("timing.summarize: median/min/mean are consistent with the sample")
+def _():
+    times = np.array([0.01, 0.02, 0.05, 0.02, 0.03])
+    med, mn, mean = summarize(times)
+    assert mn == times.min() and mn <= med <= times.max()
+    assert np.isclose(mean, times.mean())
+
+
 print(f"\n{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)
